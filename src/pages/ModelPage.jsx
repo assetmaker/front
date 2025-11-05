@@ -25,7 +25,7 @@ const ModelPage = () => {
       try {
         const res = await getTaskStatus(pollingTaskId);
         if (!res.success) {
-          throw new Error(res.error || 'Could not get task status.');
+          throw new Error(res.error || '작업 상태를 가져올 수 없습니다.');
         }
 
         const task = res.data;
@@ -38,20 +38,20 @@ const ModelPage = () => {
 
           if (isRefine) {
             // This was the refine task, we are done
-            setStatusMessage('Model generated successfully!');
+            setStatusMessage('모델이 성공적으로 생성되었습니다!');
             setModelData(task);
           } else {
             // This was the preview task, start the refine task
-            setStatusMessage('Preview complete. Creating final model...');
+            setStatusMessage('미리보기가 완료되었습니다. 최종 모델을 생성하는 중...');
             const refineRes = await createModelRefineTask(task.id);
             if (!refineRes.success) {
-              throw new Error(refineRes.error || 'Could not create refine task.');
+              throw new Error(refineRes.error || '개선 작업을 생성할 수 없습니다.');
             }
             setIsRefine(true);
             setPollingTaskId(refineRes.data.result);
           }
         } else if (task.status === 'FAILED') {
-          throw new Error(task.error_message || 'Task failed during generation.');
+          throw new Error(task.error_message || '생성 중 작업이 실패했습니다.');
         }
         // If still PENDING or IN_PROGRESS, the status message is already set
         // and the loop will continue.
@@ -59,7 +59,7 @@ const ModelPage = () => {
       } catch (err) {
         clearInterval(interval);
         setError(err.message);
-        setStatusMessage('An error occurred.');
+        setStatusMessage('오류가 발생했습니다.');
         setPollingTaskId(null);
       }
     }, 5000); // Poll every 5 seconds
@@ -70,7 +70,7 @@ const ModelPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!prompt) {
-      setError('Please enter a prompt.');
+      setError('프롬프트를 입력하세요.');
       return;
     }
     // Reset state
@@ -81,16 +81,16 @@ const ModelPage = () => {
     setPollingTaskId(null);
 
     try {
-      setStatusMessage('Creating preview task...');
+      setStatusMessage('미리보기 작업을 생성하는 중...');
       const res = await createModelPreviewTask(prompt);
       if (!res.success || !res.data.result) {
-        throw new Error(res.error || 'Could not create preview task.');
+        throw new Error(res.error || '미리보기 작업을 생성할 수 없습니다.');
       }
-      setStatusMessage('Generating preview model... (this may take a minute)');
+      setStatusMessage('미리보기 모델을 생성하는 중... (1분 정도 소요될 수 있습니다)');
       setPollingTaskId(res.data.result);
     } catch (err) {
       setError(err.message);
-      setStatusMessage('An error occurred.');
+      setStatusMessage('오류가 발생했습니다.');
     }
   };
 
@@ -98,17 +98,17 @@ const ModelPage = () => {
 
   return (
     <div style={{ padding: '2rem' }}>
-      <h1>Generate a 3D Model</h1>
+      <h1>3D 모델 생성</h1>
       <form onSubmit={handleSubmit}>
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Enter a prompt to generate a 3D model..."
+          placeholder="3D 모델을 생성하기 위한 프롬프트를 입력하세요..."
           style={{ width: '100%', minHeight: '100px', padding: '0.5rem', fontSize: '1rem' }}
           disabled={isGenerating}
         />
         <button type="submit" disabled={isGenerating} style={{ marginTop: '1rem' }}>
-          {isGenerating ? 'Generating...' : 'Generate'}
+          {isGenerating ? '생성 중...' : '생성'}
         </button>
       </form>
 
@@ -168,8 +168,8 @@ const ModelPage = () => {
 
         return (
           <div style={{ marginTop: '2rem' }}>
-            <h2>Generated Model</h2>
-            <ImageViewer src={modelData.thumbnail_url} alt="Model Thumbnail" />
+            <h2>생성된 모델</h2>
+            <ImageViewer src={modelData.thumbnail_url} alt="모델 썸네일" />
             {modelUrl ? (
               <a
                 href={`${import.meta.env.VITE_API_URL}/api/model/download/${encodeURIComponent(btoa(modelUrl))}`}
@@ -184,10 +184,10 @@ const ModelPage = () => {
                   borderRadius: '4px'
                 }}
               >
-                Download Model
+                모델 다운로드
               </a>
             ) : (
-              <div style={{marginTop: '1rem'}}>Could not find a compatible model file to download.</div>
+              <div style={{marginTop: '1rem'}}>다운로드할 수 있는 호환되는 모델 파일을 찾을 수 없습니다.</div>
             )}
           </div>
         );

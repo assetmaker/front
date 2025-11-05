@@ -9,10 +9,10 @@ const Header = () => {
       </Link>
       <nav>
         <Link to="/model" style={{ margin: '0 1rem', textDecoration: 'none', color: '#555' }}>
-          Generate Model
+          모델 생성
         </Link>
         <Link to="/script" style={{ margin: '0 1rem', textDecoration: 'none', color: '#555' }}>
-          Generate Script
+          스크립트 생성
         </Link>
       </nav>
     </header>
