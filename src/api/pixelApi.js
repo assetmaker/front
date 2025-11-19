@@ -1,10 +1,9 @@
-// src/api/pixelApi.js
 const API_URL = `${import.meta.env.VITE_API_URL}/api/pixel`;
 
 /**
- * 텍스트 → 픽셀 이미지
- * @param {string} prompt - 기본 프롬프트
- * @param {string} [negativePrompt] - 선택 네거티브 프롬프트
+ *
+ * @param {string} prompt
+ * @param {string} [negativePrompt]
  */
 export const generatePixelFromText = async (prompt, negativePrompt = "") => {
   const res = await fetch(`${API_URL}/txt2img`, {
@@ -25,14 +24,14 @@ export const generatePixelFromText = async (prompt, negativePrompt = "") => {
     throw new Error(data.error || "픽셀 이미지를 생성하지 못했습니다.");
   }
 
-  return data; // { success, mimeType, imageBase64, filename, subfolder, type }
+  return data;
 };
 
 /**
- * 이미지 → 픽셀 이미지
- * @param {string} imageBase64 - dataURL 또는 순수 base64 문자열
- * @param {string} [prompt] - 추가 프롬프트
- * @param {string} [negativePrompt] - 네거티브 프롬프트
+ *
+ * @param {string} imageBase64
+ * @param {string} [prompt]
+ * @param {string} [negativePrompt]
  */
 export const generatePixelFromImage = async (
   imageBase64,
@@ -57,5 +56,5 @@ export const generatePixelFromImage = async (
     throw new Error(data.error || "이미지를 픽셀화하지 못했습니다.");
   }
 
-  return data; // { success, mimeType, imageBase64, filename, subfolder, type }
+  return data;
 };

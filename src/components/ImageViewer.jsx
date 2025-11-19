@@ -1,4 +1,3 @@
-// src/components/ImageViewer.jsx
 import React from "react";
 
 const ImageViewer = ({

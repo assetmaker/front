@@ -1,19 +1,17 @@
-// src/pages/PixelPage.jsx
 import React, { useState, useRef, useEffect } from "react";
 import { generatePixelFromText, generatePixelFromImage } from "../api/pixelApi";
 import ImageViewer from "../components/ImageViewer";
 
-// File → base64 dataURL로 변환
 const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result); // data:image/png;base64,...
+    reader.onload = () => resolve(reader.result);
     reader.onerror = (err) => reject(err);
     reader.readAsDataURL(file);
   });
 
 const PixelPage = () => {
-  const [mode, setMode] = useState("txt2img"); // "txt2img" | "img2img"
+  const [mode, setMode] = useState("txt2img");
 
   const [prompt, setPrompt] = useState(""); // 공통/추가 프롬프트
   const [negativePrompt, setNegativePrompt] = useState(""); // 네거티브 프롬프트
@@ -27,10 +25,9 @@ const PixelPage = () => {
   const [resultDataUrl, setResultDataUrl] = useState(null); // 최종 base64 이미지
   const [resultMeta, setResultMeta] = useState(null); // filename 등 메타
 
-  const [progress, setProgress] = useState(0); // 진행도 (프론트 의사 진행)
+  const [progress, setProgress] = useState(0); // 진행도
   const progressTimerRef = useRef(null);
 
-  // 언마운트 시 타이머 정리
   useEffect(() => {
     return () => {
       if (progressTimerRef.current) {
@@ -47,10 +44,10 @@ const PixelPage = () => {
 
     progressTimerRef.current = setInterval(() => {
       setProgress((prev) => {
-        if (prev >= 90) return 90; // 90% 이상은 서버 응답을 기다린다
+        if (prev >= 90) return 90;
         return prev + 5;
       });
-    }, 300); // 0.3초마다 5%씩 증가
+    }, 300);
   };
 
   const finishProgress = () => {
@@ -70,7 +67,6 @@ const PixelPage = () => {
     setProgress(0);
   };
 
-  // img2img 파일 입력 핸들러
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) {
@@ -80,7 +76,7 @@ const PixelPage = () => {
     }
 
     setImageFile(file);
-    setImagePreviewUrl(URL.createObjectURL(file)); // 미리보기용 객체 URL
+    setImagePreviewUrl(URL.createObjectURL(file));
   };
 
   const handleSubmit = async (e) => {
@@ -104,7 +100,6 @@ const PixelPage = () => {
       startProgress();
 
       if (mode === "txt2img") {
-        // 텍스트 → 픽셀
         const data = await generatePixelFromText(prompt, negativePrompt);
         const { mimeType, imageBase64, filename, subfolder, type } = data;
         const dataUrl = `data:${mimeType || "image/png"};base64,${imageBase64}`;
