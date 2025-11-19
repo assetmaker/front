@@ -1,79 +1,165 @@
-import React, { useState } from "react";
+// src/pages/PixelPage.jsx
+import React, { useState, useRef, useEffect } from "react";
 import { generatePixelFromText, generatePixelFromImage } from "../api/pixelApi";
 import ImageViewer from "../components/ImageViewer";
 
-const buildImageUrl = (imageMeta) => {
-  if (!imageMeta) return null;
-
-  const base = import.meta.env.VITE_COMFY_URL; // 예: http://127.0.0.1:8188
-  const filename = encodeURIComponent(imageMeta.filename);
-  const subfolder = encodeURIComponent(imageMeta.subfolder || "");
-  const type = encodeURIComponent(imageMeta.type || "output");
-
-  return `${base}/view?filename=${filename}&subfolder=${subfolder}&type=${type}`;
-};
+// File → base64 dataURL로 변환
+const fileToBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result); // data:image/png;base64,...
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
 
 const PixelPage = () => {
   const [mode, setMode] = useState("txt2img"); // "txt2img" | "img2img"
-  const [prompt, setPrompt] = useState("");
-  const [imageName, setImageName] = useState("");
+
+  const [prompt, setPrompt] = useState(""); // 공통/추가 프롬프트
+  const [negativePrompt, setNegativePrompt] = useState(""); // 네거티브 프롬프트
+
+  const [imageFile, setImageFile] = useState(null); // img2img용 업로드 파일
+  const [imagePreviewUrl, setImagePreviewUrl] = useState(null); // 업로드 미리보기
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [resultImage, setResultImage] = useState(null);
+
+  const [resultDataUrl, setResultDataUrl] = useState(null); // 최종 base64 이미지
+  const [resultMeta, setResultMeta] = useState(null); // filename 등 메타
+
+  const [progress, setProgress] = useState(0); // 진행도 (프론트 의사 진행)
+  const progressTimerRef = useRef(null);
+
+  // 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (progressTimerRef.current) {
+        clearInterval(progressTimerRef.current);
+      }
+    };
+  }, []);
+
+  const startProgress = () => {
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current);
+    }
+    setProgress(0);
+
+    progressTimerRef.current = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 90) return 90; // 90% 이상은 서버 응답을 기다린다
+        return prev + 5;
+      });
+    }, 300); // 0.3초마다 5%씩 증가
+  };
+
+  const finishProgress = () => {
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+    setProgress(100);
+    setTimeout(() => setProgress(0), 1000);
+  };
+
+  const resetProgress = () => {
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+    setProgress(0);
+  };
+
+  // img2img 파일 입력 핸들러
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setImageFile(null);
+      setImagePreviewUrl(null);
+      return;
+    }
+
+    setImageFile(file);
+    setImagePreviewUrl(URL.createObjectURL(file)); // 미리보기용 객체 URL
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    setResultImage(null);
+    setResultDataUrl(null);
+    setResultMeta(null);
 
-    if (mode === "txt2img" && !prompt) {
+    if (mode === "txt2img" && !prompt.trim()) {
       setError("프롬프트를 입력하세요.");
       return;
     }
-    if (mode === "img2img" && !imageName) {
-      setError("이미지 파일명을 입력하세요.");
+
+    if (mode === "img2img" && !imageFile) {
+      setError("이미지 파일을 업로드하세요.");
       return;
     }
 
     try {
       setLoading(true);
-      let data;
+      startProgress();
 
       if (mode === "txt2img") {
-        data = await generatePixelFromText(prompt);
+        // 텍스트 → 픽셀
+        const data = await generatePixelFromText(prompt, negativePrompt);
+        const { mimeType, imageBase64, filename, subfolder, type } = data;
+        const dataUrl = `data:${mimeType || "image/png"};base64,${imageBase64}`;
+
+        setResultDataUrl(dataUrl);
+        setResultMeta({ filename, subfolder, type });
       } else {
-        data = await generatePixelFromImage(imageName, prompt);
+        // 이미지 → 픽셀
+        const base64DataUrl = await fileToBase64(imageFile);
+        const data = await generatePixelFromImage(
+          base64DataUrl,
+          prompt,
+          negativePrompt
+        );
+        const { mimeType, imageBase64, filename, subfolder, type } = data;
+        const dataUrl = `data:${mimeType || "image/png"};base64,${imageBase64}`;
+
+        setResultDataUrl(dataUrl);
+        setResultMeta({ filename, subfolder, type });
       }
 
-      if (!data.success || !Array.isArray(data.images) || data.images.length === 0) {
-        throw new Error(data.error || "이미지를 생성하지 못했습니다.");
-      }
-
-      setResultImage(data.images[0]); // 첫 번째 결과만 사용
+      finishProgress();
     } catch (err) {
+      console.error(err);
+      resetProgress();
       setError(err.message || "예상치 못한 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
   };
 
-  const imageUrl = resultImage ? buildImageUrl(resultImage) : null;
-
   return (
-    <div style={{ padding: "2rem" }}>
-      <h1>2D 픽셀 에셋 생성 (ComfyUI)</h1>
+    <div
+      style={{
+        padding: "2rem",
+        maxWidth: "960px",
+        margin: "0 auto",
+      }}
+    >
+      <h1 style={{ marginBottom: "1rem" }}>2D 픽셀 에셋 생성 (ComfyUI)</h1>
 
       {/* 모드 선택 */}
       <div style={{ margin: "1rem 0" }}>
         <button
           type="button"
           onClick={() => setMode("txt2img")}
+          disabled={loading}
           style={{
             padding: "0.5rem 1rem",
             marginRight: "0.5rem",
-            borderRadius: "4px",
-            border: mode === "txt2img" ? "2px solid #007bff" : "1px solid #ccc",
+            borderRadius: "6px",
+            border:
+              mode === "txt2img" ? "2px solid #007bff" : "1px solid #ccc",
             backgroundColor: mode === "txt2img" ? "#e6f0ff" : "#fff",
+            cursor: loading ? "not-allowed" : "pointer",
           }}
         >
           텍스트 → 픽셀 이미지
@@ -81,11 +167,14 @@ const PixelPage = () => {
         <button
           type="button"
           onClick={() => setMode("img2img")}
+          disabled={loading}
           style={{
             padding: "0.5rem 1rem",
-            borderRadius: "4px",
-            border: mode === "img2img" ? "2px solid #007bff" : "1px solid #ccc",
+            borderRadius: "6px",
+            border:
+              mode === "img2img" ? "2px solid #007bff" : "1px solid #ccc",
             backgroundColor: mode === "img2img" ? "#e6f0ff" : "#fff",
+            cursor: loading ? "not-allowed" : "pointer",
           }}
         >
           이미지 → 픽셀 이미지
@@ -94,6 +183,7 @@ const PixelPage = () => {
 
       {/* 입력 폼 */}
       <form onSubmit={handleSubmit}>
+        {/* txt2img 모드 */}
         {mode === "txt2img" && (
           <>
             <label style={{ display: "block", marginBottom: "0.5rem" }}>
@@ -114,19 +204,28 @@ const PixelPage = () => {
           </>
         )}
 
+        {/* img2img 모드 */}
         {mode === "img2img" && (
           <>
             <label style={{ display: "block", marginBottom: "0.5rem" }}>
-              ComfyUI input 폴더 기준 이미지 파일명
+              원본 이미지 업로드
             </label>
             <input
-              type="text"
-              value={imageName}
-              onChange={(e) => setImageName(e.target.value)}
-              placeholder="예: knight_source.png"
-              style={{ width: "100%", padding: "0.5rem", fontSize: "1rem" }}
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
               disabled={loading}
             />
+            {imagePreviewUrl && (
+              <div style={{ marginTop: "1rem" }}>
+                <p style={{ marginBottom: "0.5rem" }}>원본 이미지 미리보기</p>
+                <ImageViewer
+                  src={imagePreviewUrl}
+                  alt="업로드한 원본 이미지"
+                  maxWidth={256}
+                />
+              </div>
+            )}
 
             <label
               style={{
@@ -152,22 +251,71 @@ const PixelPage = () => {
           </>
         )}
 
+        {/* 공통 네거티브 프롬프트 */}
+        <label
+          style={{
+            display: "block",
+            marginTop: "1rem",
+            marginBottom: "0.5rem",
+          }}
+        >
+          (선택) 네거티브 프롬프트
+        </label>
+        <textarea
+          value={negativePrompt}
+          onChange={(e) => setNegativePrompt(e.target.value)}
+          placeholder="예: low quality, text, watermark..."
+          style={{
+            width: "100%",
+            minHeight: "60px",
+            padding: "0.5rem",
+            fontSize: "0.95rem",
+          }}
+          disabled={loading}
+        />
+
         <button
           type="submit"
           disabled={loading}
           style={{
             marginTop: "1rem",
             padding: "0.6rem 1.4rem",
-            borderRadius: "4px",
+            borderRadius: "6px",
             border: "none",
             backgroundColor: "#007bff",
             color: "white",
-            cursor: "pointer",
+            cursor: loading ? "not-allowed" : "pointer",
           }}
         >
           {loading ? "생성 중..." : "생성"}
         </button>
       </form>
+
+      {/* 진행도 표시 */}
+      {progress > 0 && (
+        <div style={{ marginTop: "1rem" }}>
+          <div
+            style={{
+              height: "10px",
+              background: "#eee",
+              borderRadius: "5px",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                width: `${progress}%`,
+                height: "100%",
+                background: "#007bff",
+                transition: "width 0.2s ease-out",
+              }}
+            />
+          </div>
+          <p style={{ marginTop: "0.3rem", fontSize: "0.9rem", color: "#555" }}>
+            진행도: {progress}%
+          </p>
+        </div>
+      )}
 
       {error && (
         <p style={{ color: "red", marginTop: "1rem" }}>
@@ -175,14 +323,23 @@ const PixelPage = () => {
         </p>
       )}
 
-      {imageUrl && (
+      {/* 결과 이미지 */}
+      {resultDataUrl && (
         <div style={{ marginTop: "2rem" }}>
           <h2>생성된 픽셀 이미지</h2>
-          <ImageViewer src={imageUrl} alt="생성된 픽셀 에셋" />
-          <p style={{ marginTop: "0.5rem", color: "#555" }}>
-            파일명: {resultImage.filename}
-            {resultImage.subfolder && ` (폴더: ${resultImage.subfolder})`}
-          </p>
+          <ImageViewer
+            src={resultDataUrl}
+            alt="생성된 픽셀 에셋"
+            showDownload={true}
+            downloadName={
+              (resultMeta && resultMeta.filename) || "pixel_asset.png"
+            }
+          />
+          {resultMeta && (
+            <p style={{ marginTop: "0.5rem", color: "#555" }}>
+              파일명: {resultMeta.filename || "(메모리 상 이미지)"}
+            </p>
+          )}
         </div>
       )}
     </div>
