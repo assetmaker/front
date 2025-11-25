@@ -11,13 +11,11 @@ const ModelPage = () => {
   const [error, setError] = useState(null);
   const [modelData, setModelData] = useState(null);
 
-  // State for multi-step progress
   const [statusMessage, setStatusMessage] = useState('');
   const [progress, setProgress] = useState(0);
   const [pollingTaskId, setPollingTaskId] = useState(null);
   const [isRefine, setIsRefine] = useState(false);
 
-  // Polling effect
   useEffect(() => {
     if (!pollingTaskId) return;
 
@@ -37,11 +35,9 @@ const ModelPage = () => {
           setProgress(100);
 
           if (isRefine) {
-            // This was the refine task, we are done
             setStatusMessage('모델이 성공적으로 생성되었습니다!');
             setModelData(task);
           } else {
-            // This was the preview task, start the refine task
             setStatusMessage('미리보기가 완료되었습니다. 최종 모델을 생성하는 중...');
             const refineRes = await createModelRefineTask(task.id);
             if (!refineRes.success) {
@@ -53,8 +49,6 @@ const ModelPage = () => {
         } else if (task.status === 'FAILED') {
           throw new Error(task.error_message || '생성 중 작업이 실패했습니다.');
         }
-        // If still PENDING or IN_PROGRESS, the status message is already set
-        // and the loop will continue.
 
       } catch (err) {
         clearInterval(interval);
@@ -62,7 +56,7 @@ const ModelPage = () => {
         setStatusMessage('오류가 발생했습니다.');
         setPollingTaskId(null);
       }
-    }, 5000); // Poll every 5 seconds
+    }, 5000);
 
     return () => clearInterval(interval);
   }, [pollingTaskId, isRefine]);
@@ -73,7 +67,6 @@ const ModelPage = () => {
       setError('프롬프트를 입력하세요.');
       return;
     }
-    // Reset state
     setError(null);
     setModelData(null);
     setProgress(0);
@@ -135,7 +128,6 @@ const ModelPage = () => {
         const getModelUrl = (data) => {
           if (!data) return null;
 
-          // Case 1: data.model_urls is an object of URLs { glb: "...", fbx: "..." }
           if (data.model_urls) {
             if (typeof data.model_urls.glb === 'string') return data.model_urls.glb;
             if (typeof data.model_urls.gltf === 'string') return data.model_urls.gltf;
@@ -146,7 +138,6 @@ const ModelPage = () => {
             if (modelFile) return modelFile;
           }
 
-          // Case 2: data.model_outputs is an array of objects [ { format: "glb", url: "..." } ]
           if (Array.isArray(data.model_outputs)) {
             const glbOutput = data.model_outputs.find(o => o.format === 'glb');
             if (glbOutput && typeof glbOutput.url === 'string') return glbOutput.url;
